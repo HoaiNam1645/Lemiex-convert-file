@@ -1,0 +1,108 @@
+{
+  "fffdd5cc": {
+    "assignments": {
+      "1": {
+        "code": "82",
+        "name": "Christmas Green",
+        "rgb_hex": "#007735"
+      },
+      "2": {
+        "code": "3",
+        "name": "Sunflower",
+        "rgb_hex": "#F3D03B"
+      },
+      "3": null,
+      "4": {
+        "code": "22",
+        "name": "Salmon",
+        "rgb_hex": "#FFA08A"
+      },
+      "5": {
+        "code": "137",
+        "name": "Black",
+        "rgb_hex": "#000000"
+      },
+      "6": null,
+      "7": {
+        "code": "69",
+        "name": "Calypso",
+        "rgb_hex": "#003478"
+      },
+      "8": {
+        "code": "135",
+        "name": "White",
+        "rgb_hex": "#FCFCF5"
+      },
+      "9": {
+        "code": "114",
+        "name": "Sienna",
+        "rgb_hex": "#3E2017"
+      },
+      "10": {
+        "code": "109",
+        "name": "Lace",
+        "rgb_hex": "#E5DBBA"
+      },
+      "11": {
+        "code": "104",
+        "name": "Gold",
+        "rgb_hex": "#C8942C"
+      },
+      "12": {
+        "code": "28",
+        "name": "Crimson Red",
+        "rgb_hex": "#CE2029"
+      }
+    },
+    "colors": [
+      {
+        "sequence": 1,
+        "needle_number": 9
+      },
+      {
+        "sequence": 2,
+        "needle_number": 11
+      },
+      {
+        "sequence": 3,
+        "needle_number": 10
+      },
+      {
+        "sequence": 4,
+        "needle_number": 4
+      },
+      {
+        "sequence": 5,
+        "needle_number": 2
+      },
+      {
+        "sequence": 6,
+        "needle_number": 12
+      },
+      {
+        "sequence": 7,
+        "needle_number": 7
+      },
+      {
+        "sequence": 8,
+        "needle_number": 8
+      },
+      {
+        "sequence": 9,
+        "needle_number": 1
+      },
+      {
+        "sequence": 10,
+        "needle_number": 4
+      },
+      {
+        "sequence": 11,
+        "needle_number": 12
+      },
+      {
+        "sequence": 12,
+        "needle_number": 5
+      }
+    ]
+  }
+}
