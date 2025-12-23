@@ -35,3 +35,5 @@ B2_URL_CLOUD = os.getenv("B2_URL_CLOUD", "https://zipimgs.com/file/Lemiex-Fulfil
 
 # Output paths on B2
 B2_JSON_OUTPUT_PATH = "converted_json"
+B2_DST_OUTPUT_PATH = "converted_dst"
+B2_INFO_IMAGE_PATH = "info_images"

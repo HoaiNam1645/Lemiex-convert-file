@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.file_handler import download_from_url, cleanup_temp_file
-from services.pes_converter import process_pes_to_json_no_preview
+from services.pes_converter import process_pes_to_json_fast, process_pes_to_json_no_preview
 from services.b2_storage import upload_json_to_b2, extract_filename_from_url
 
 router = APIRouter()
@@ -19,20 +19,24 @@ router = APIRouter()
 
 class ConvertB2Request(BaseModel):
     url: str
+    include_preview: bool = True
+    preview_size: int = 400
 
 
 class ConvertB2Response(BaseModel):
     url: str
 
 
-@router.post("/convert-b2", response_model=ConvertB2Response)
-async def convert_pes_to_b2(request: ConvertB2Request):
+@router.post("/convert-pes-to-json", response_model=ConvertB2Response)
+async def convert_pes_to_json_b2(request: ConvertB2Request):
     """
     Convert PES file from URL to JSON and upload to B2
     
     Input:
     {
-        "url": "https://s3.us-east-005.backblazeb2.com/Lemiex-Fulfillment/pes_files/63_61_front.pes"
+        "url": "https://s3.us-east-005.backblazeb2.com/Lemiex-Fulfillment/pes_files/63_61_front.pes",
+        "include_preview": true,
+        "preview_size": 400
     }
     
     Output:
@@ -56,8 +60,11 @@ async def convert_pes_to_b2(request: ConvertB2Request):
         # Extract filename
         original_filename = extract_filename_from_url(request.url)
         
-        # Process PES file - NO PREVIEW for speed
-        result = process_pes_to_json_no_preview(tmp_path)
+        # Process PES file
+        if request.include_preview:
+            result = process_pes_to_json_fast(tmp_path, preview_size=request.preview_size)
+        else:
+            result = process_pes_to_json_no_preview(tmp_path)
         
         # Update file info
         result["file_info"]["filename"] = original_filename
