@@ -32,19 +32,19 @@ app.add_middleware(
 )
 
 
-@app.get("/api/health")
+@app.get("/pes-api/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "pes-embroidery-api"}
 
 
 # Include routers
-app.include_router(convert.router, prefix="/api", tags=["Convert"])
-app.include_router(preview.router, prefix="/api", tags=["Preview"])
-app.include_router(format.router, prefix="/api", tags=["Format"])
-app.include_router(convert_b2.router, prefix="/api", tags=["B2 Storage"])
-app.include_router(batch_convert.router, prefix="/api", tags=["Batch Convert"])
-app.include_router(label_convert.router, prefix="/api", tags=["Label Convert"])
+app.include_router(convert.router, prefix="/pes-api", tags=["Convert"])
+app.include_router(preview.router, prefix="/pes-api", tags=["Preview"])
+app.include_router(format.router, prefix="/pes-api", tags=["Format"])
+app.include_router(convert_b2.router, prefix="/pes-api", tags=["B2 Storage"])
+app.include_router(batch_convert.router, prefix="/pes-api", tags=["Batch Convert"])
+app.include_router(label_convert.router, prefix="/pes-api", tags=["Label Convert"])
 
 
 if __name__ == "__main__":
