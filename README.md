@@ -1,109 +1,121 @@
-# PES Design Information Viewer
+# PES Embroidery API
 
-Giao diện web hiển thị thông tin design PES (embroidery) với khả năng quản lý kim may thêu.
+API service để xử lý file thêu PES - convert sang JSON, DST và generate preview.
 
-## Tính năng chính
+## Tech Stack
 
-### 1. Hiển thị thông tin file PES
-- **Thumbnail**: Hiển thị preview của design (hiện tại là placeholder, cần tích hợp với pyembroidery)
-- **File info**: Tên file, số mũi (stitches), chiều cao, chiều rộng, số màu
-- **Format**: Giống như trong hình mẫu được cung cấp
+- Python 3.9+
+- FastAPI + Uvicorn
+- pyembroidery (đọc/ghi file thêu)
+- Pillow (render preview)
+- Backblaze B2 (storage)
 
-### 2. Quản lý 12 kim may thêu (Needles 1-12)
-- **Hiển thị**: 12 ô kim với số thứ tự từ 1-12
-- **Màu mặc định**: 
-  - Kim số 5: Màu đen (code 137)
-  - Kim số 8: Màu trắng (code 135)
-- **Drag & Drop**: Kéo màu từ bảng color table vào kim
-- **Visual feedback**: Kim có màu sẽ hiển thị màu tương ứng và code
+## Cài đặt
 
-### 3. Bảng Color Stop Sequence
-- **Cột hiển thị**: #, N#, Color, Code, Name, Chart
-- **N# column**: Hiển thị số kim được gán (tự động cập nhật khi drag-drop)
-- **Drag support**: Mỗi dòng màu có thể kéo thả vào kim
-- **Color swatch**: Hiển thị mẫu màu thực tế
-
-### 4. Tính năng nâng cao
-- **Responsive design**: Tương thích mobile/tablet
-- **Status messages**: Thông báo khi gán/xóa kim
-- **Clear needle**: Click vào kim để xóa màu
-- **Consistent UI**: Thiết kế giống với pesinfo.py output
-
-## Cách sử dụng
-
-### 1. Mở giao diện
 ```bash
-# Mở file index.html trong trình duyệt web
-# Hoặc sử dụng local server:
-python -m http.server 8000
-# Truy cập: http://localhost:8000
+# Clone project
+git clone <repo-url>
+cd pes-api
+
+# Tạo virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Cài dependencies
+pip install -r api/requirements.txt
 ```
 
-### 2. Load file PES (tương lai)
-- Click nút "Load PES File" 
-- Chọn file .pes (hiện tại chỉ hiển thị sample data)
+## Chạy server
 
-### 3. Quản lý kim
-- **Gán màu**: Kéo dòng màu từ bảng vào kim muốn gán
-- **Xóa kim**: Click vào kim đã có màu để xóa
-- **Xem assignment**: Cột N# trong bảng hiển thị kim được gán
-
-## Cấu trúc file
-
-```
-UI-web-pes/
-├── index.html          # Giao diện chính
-├── styles.css          # Styling và responsive
-├── app.js              # Logic JavaScript
-├── pesinfo.py          # Script Python tham khảo
-└── README.md           # Tài liệu này
+```bash
+python3 api/main.py
 ```
 
-## Tích hợp với pesinfo.py
+Server chạy tại: http://localhost:8009
 
-### Đã tham khảo từ pesinfo.py:
-- **Cấu trúc dữ liệu**: Format thông tin file và màu
-- **Needle assignment logic**: Mặc định đen/trắng ở kim 5/8
-- **Color processing**: Xử lý code màu và chart
-- **Memory system**: Concept lưu trữ assignment (chưa implement)
+API Docs: http://localhost:8009/docs
 
-### Cần implement thêm:
-- **PES file parser**: Đọc file .pes thực tế
-- **Thumbnail generator**: Tạo preview image từ PES
-- **Memory persistence**: Lưu needle assignment
-- **Export functionality**: Xuất thông tin đã gán kim
+## API Endpoints
 
-## Customization
-
-### Thay đổi màu mặc định
-```javascript
-// Trong app.js, hàm setupDefaultNeedleAssignment()
-const blackColor = this.colorData.find(color => color.code === 137);
-const whiteColor = this.colorData.find(color => color.code === 135);
+### Health Check
+```
+GET /api/health
 ```
 
-### Thay đổi số kim
-```javascript
-// Thay đổi số kim từ 12 thành số khác
-// Cập nhật trong initializeNeedles() và needleAssignment array
+### Convert PES → JSON (upload B2)
+```
+POST /api/convert-pes-to-json
+```
+```json
+{
+  "url": "https://.../file.pes",
+  "include_preview": true,
+  "preview_size": 400
+}
 ```
 
-### Thêm cột bảng
-```html
-<!-- Trong index.html, thêm cột mới vào color table -->
-<th>New Column</th>
+### Batch Convert PES → DST (upload B2)
+```
+POST /api/convert-pes-to-dst
+```
+```json
+{
+  "urls": [
+    {"side": "front", "item_id": 61, "url": "https://.../front.pes"},
+    {"side": "back", "item_id": 61, "url": "https://.../back.pes"}
+  ],
+  "order_id": 63,
+  "include_dst": true
+}
 ```
 
-## Browser Support
-- Chrome/Edge: ✅ Full support
-- Firefox: ✅ Full support  
-- Safari: ✅ Full support
-- Mobile browsers: ✅ Responsive design
+### Convert PES → JSON (trả về trực tiếp)
+```
+POST /api/convert
+```
+Form data: `file` hoặc `url`
 
-## Roadmap
-1. **Tích hợp pyembroidery**: Đọc file PES thực tế
-2. **Server backend**: API để xử lý file upload
-3. **Needle memory**: Lưu trữ assignment giữa các session
-4. **Export features**: Xuất DST, JPG với needle info
-5. **Batch processing**: Xử lý multiple files
-6. **Advanced UI**: Zoom, pan cho preview image
+### Generate Preview
+```
+POST /api/preview
+```
+Form data: `file` hoặc `url`
+
+### Convert Format (PES ↔ DST ↔ JEF...)
+```
+POST /api/convert-format
+```
+Form data: `file` hoặc `url`, `output_format`
+
+## Cấu trúc project
+
+```
+api/
+├── main.py              # FastAPI app
+├── config.py            # Configuration
+├── requirements.txt     # Dependencies
+├── routes/              # API endpoints
+│   ├── convert.py
+│   ├── convert_b2.py
+│   ├── batch_convert.py
+│   ├── preview.py
+│   └── format.py
+└── services/            # Business logic
+    ├── file_handler.py
+    ├── pes_converter.py
+    └── b2_storage.py
+```
+
+## Environment Variables
+
+```bash
+B2_ACCESS_KEY_ID=xxx
+B2_SECRET_ACCESS_KEY=xxx
+B2_DEFAULT_REGION=us-east-005
+B2_BUCKET=Lemiex-Fulfillment
+B2_ENDPOINT=https://s3.us-east-005.backblazeb2.com
+```
+
+## Deployment
+
+Xem chi tiết tại [DEPLOYMENT.md](DEPLOYMENT.md)

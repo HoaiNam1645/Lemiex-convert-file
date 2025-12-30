@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS, CORS_CREDENTIALS, CORS_METHODS, CORS_HEADERS, HOST, PORT
-from routes import convert, preview, format, convert_b2, batch_convert
+from routes import convert, preview, format, convert_b2, batch_convert, label_convert
 
 app = FastAPI(
     title="PES Embroidery API",
@@ -44,6 +44,7 @@ app.include_router(preview.router, prefix="/api", tags=["Preview"])
 app.include_router(format.router, prefix="/api", tags=["Format"])
 app.include_router(convert_b2.router, prefix="/api", tags=["B2 Storage"])
 app.include_router(batch_convert.router, prefix="/api", tags=["Batch Convert"])
+app.include_router(label_convert.router, prefix="/api", tags=["Label Convert"])
 
 
 if __name__ == "__main__":

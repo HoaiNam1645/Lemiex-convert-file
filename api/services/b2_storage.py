@@ -18,7 +18,40 @@ from config import (
     B2_JSON_OUTPUT_PATH,
     B2_DST_OUTPUT_PATH,
     B2_INFO_IMAGE_PATH,
+    B2_LABEL_OUTPUT_PATH,
 )
+
+
+def upload_label_to_b2(file_bytes: bytes, filename: str) -> str:
+    """
+    Upload Label file (JPG) to B2
+    
+    Args:
+        file_bytes: Content of file
+        filename: Output filename (without path)
+    
+    Returns:
+        Full URL to uploaded file
+    """
+    client = get_b2_client()
+    
+    # Ensure filename ends with .jpg
+    if not filename.endswith(".jpg"):
+        filename = filename.rsplit(".", 1)[0] + ".jpg"
+    
+    # Build key path: converted_label/label_123.jpg
+    key = f"{B2_LABEL_OUTPUT_PATH}/{filename}"
+    
+    # Upload to B2
+    client.put_object(
+        Bucket=B2_BUCKET,
+        Key=key,
+        Body=file_bytes,
+        ContentType="image/jpeg",
+    )
+    
+    # Return full URL
+    return f"{B2_ENDPOINT}/{B2_BUCKET}/{key}"
 
 
 def get_b2_client():
