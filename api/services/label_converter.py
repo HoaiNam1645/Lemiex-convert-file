@@ -7,6 +7,7 @@ Converts PDF labels to JPG with text overlay
 import os
 import re
 import random
+import shutil
 import httpx
 from pathlib import Path
 from datetime import datetime
@@ -231,16 +232,17 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     except Exception as e:
         print(f"Error extracting text with pdfplumber: {e}")
     
-    # If pdfplumber didn't get text, try OCR
-    if not full_text.strip():
-        print("pdfplumber returned empty text, trying OCR...")
+    # If pdfplumber didn't get meaningful text (too short), try OCR
+    # Sometimes PDFs have hidden text layers or just "Scanned by..."
+    if len(full_text.strip()) < 100:
+        print(f"PDF text too short ({len(full_text.strip())} chars), trying OCR to ensure quality...")
         try:
             import pytesseract
             
             # Convert PDF to image first
             pdf = pdfium.PdfDocument(pdf_bytes)
             page = pdf[0]
-            scale = 200 / 72  # Higher DPI for better OCR
+            scale = 300 / 72  # Increased DPI to 300 for clearer text on server
             bitmap = page.render(scale=scale)
             pil_image = bitmap.to_pil()
             
@@ -248,11 +250,27 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
             if pil_image.mode != 'RGB':
                 pil_image = pil_image.convert('RGB')
             
-            # Run OCR
-            full_text = pytesseract.image_to_string(pil_image)
-            print(f"OCR extracted text: {full_text[:500]}...")
+            # Run OCR with config to treat image as single block of text
+            custom_config = r'--oem 3 --psm 6'
+            
+            # Explicitly set tesseract path if needed
+            if not shutil.which('tesseract'):
+                if os.path.exists('/usr/bin/tesseract'):
+                    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+                elif os.path.exists('/usr/local/bin/tesseract'):
+                    pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
+            
+            ocr_text = pytesseract.image_to_string(pil_image, config=custom_config)
+            
+            print(f"OCR extracted {len(ocr_text)} chars")
+            # If OCR got more text, use it
+            if len(ocr_text.strip()) > len(full_text.strip()):
+                full_text = ocr_text
+                
         except Exception as e:
             print(f"Error with OCR: {e}")
+            import traceback
+            traceback.print_exc()
     
     return full_text
 
@@ -375,6 +393,12 @@ def convert_label_to_jpg(
     
     # Debug: Print detection results
     print(f"Detected carrier: {carrier}, tracking_id: {tracking_id}")
+    
+    if not tracking_id:
+        print("WARNING: Tracking ID not found! Dumping full text for debug:")
+        print("-" * 50)
+        print(full_text)
+        print("-" * 50)
     
     # Convert PDF to image
     image = pdf_to_image(pdf_bytes)
