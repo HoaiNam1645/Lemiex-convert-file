@@ -19,6 +19,7 @@ from config import (
     B2_DST_OUTPUT_PATH,
     B2_INFO_IMAGE_PATH,
     B2_LABEL_OUTPUT_PATH,
+    B2_QR_OUTPUT_PATH,
 )
 
 
@@ -48,6 +49,38 @@ def upload_label_to_b2(file_bytes: bytes, filename: str) -> str:
         Key=key,
         Body=file_bytes,
         ContentType="image/jpeg",
+    )
+    
+    # Return full URL
+    return f"{B2_ENDPOINT}/{B2_BUCKET}/{key}"
+
+
+def upload_qr_to_b2(file_bytes: bytes, filename: str) -> str:
+    """
+    Upload QR code image (PNG) to B2
+    
+    Args:
+        file_bytes: Content of file
+        filename: Output filename (without path)
+    
+    Returns:
+        Full URL to uploaded file
+    """
+    client = get_b2_client()
+    
+    # Ensure filename ends with .png
+    if not filename.endswith(".png"):
+        filename = filename.rsplit(".", 1)[0] + ".png"
+    
+    # Build key path: convert_qr/123_1_5.png
+    key = f"{B2_QR_OUTPUT_PATH}/{filename}"
+    
+    # Upload to B2
+    client.put_object(
+        Bucket=B2_BUCKET,
+        Key=key,
+        Body=file_bytes,
+        ContentType="image/png",
     )
     
     # Return full URL
