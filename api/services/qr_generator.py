@@ -91,12 +91,12 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     
     # Calculate text positions - spread evenly across height
     x = 10
-    padding_top = 10
-    padding_bottom = 10
+    padding_top = 12
+    padding_bottom = 12
     available_height = canvas_height - padding_top - padding_bottom
     
-    # 5 lines of text, calculate equal spacing
-    num_lines = 5
+    # 4 lines of text, calculate equal spacing
+    num_lines = 4
     line_spacing = available_height // num_lines
     
     # Line 1: Order ID
@@ -116,12 +116,6 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     # Line 4: Color (red)
     y = padding_top + line_spacing * 3
     draw.text((x, y), str(color), fill=(180, 0, 0), font=font_text)
-    
-    # Line 5: DST URL / identifier
-    y = padding_top + line_spacing * 4
-    if dst_url:
-        dst_display = dst_url.lstrip('/')
-        draw.text((x, y), dst_display, fill=(80, 80, 80), font=font_text)
     
     # Convert to bytes
     output = BytesIO()
