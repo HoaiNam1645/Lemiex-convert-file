@@ -40,6 +40,9 @@ async def generate_qr(
     Returns: URL of the uploaded image on B2
     """
     try:
+        # Debug: Log what we received
+        print(f"QR Generate - Received pageqr: {pageqr}")
+        
         data = {
             "order_item_id": order_item_id,
             "order_id": order_id,

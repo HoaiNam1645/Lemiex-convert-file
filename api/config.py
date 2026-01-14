@@ -43,6 +43,7 @@ B2_DST_OUTPUT_PATH = os.getenv("B2_DST_OUTPUT_PATH", "converted_dst")
 B2_LABEL_OUTPUT_PATH = os.getenv("B2_LABEL_OUTPUT_PATH", "converted_label")
 B2_INFO_IMAGE_PATH = os.getenv("B2_INFO_IMAGE_PATH", "info_images")
 B2_QR_OUTPUT_PATH = os.getenv("B2_QR_OUTPUT_PATH", "convert_qr")
+B2_MERGED_IMAGE_PATH = os.getenv("B2_MERGED_IMAGE_PATH", "merged_image")
 
 # Callback API
 BE_API_URL = os.getenv("BE_API_URL")

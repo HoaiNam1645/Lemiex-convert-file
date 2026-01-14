@@ -20,6 +20,7 @@ from config import (
     B2_INFO_IMAGE_PATH,
     B2_LABEL_OUTPUT_PATH,
     B2_QR_OUTPUT_PATH,
+    B2_MERGED_IMAGE_PATH,
 )
 
 
@@ -253,3 +254,35 @@ def delete_multiple_from_b2(urls: list) -> None:
     for url in urls:
         if url:
             delete_from_b2(url)
+
+
+def upload_merged_image_to_b2(file_bytes: bytes, filename: str) -> str:
+    """
+    Upload Merged Image (PNG) to B2
+    
+    Args:
+        file_bytes: Content of file
+        filename: Output filename (without path)
+    
+    Returns:
+        Full URL to uploaded file
+    """
+    client = get_b2_client()
+    
+    # Ensure filename ends with .png
+    if not filename.endswith(".png"):
+        filename = filename.rsplit(".", 1)[0] + ".png"
+    
+    # Build key path
+    key = f"{B2_MERGED_IMAGE_PATH}/{filename}"
+    
+    # Upload to B2
+    client.put_object(
+        Bucket=B2_BUCKET,
+        Key=key,
+        Body=file_bytes,
+        ContentType="image/png",
+    )
+    
+    # Return full URL
+    return f"{B2_ENDPOINT}/{B2_BUCKET}/{key}"
