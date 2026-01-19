@@ -49,11 +49,13 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     # Canvas dimensions
     text_width = 180
     gap = 10  # Gap between text and QR
-    canvas_width = text_width + gap + qr_width
-    canvas_height = qr_height
+    bottom_padding = 50 # Khoảng trắng ở dưới
     
-    # Create canvas with light gray background
-    canvas = Image.new('RGB', (canvas_width, canvas_height), color=(220, 220, 220))
+    canvas_width = text_width + gap + qr_width
+    canvas_height = qr_height + bottom_padding
+    
+    # Create canvas with white background
+    canvas = Image.new('RGB', (canvas_width, canvas_height), color=(255, 255, 255))
     
     # Paste QR code on right side
     qr_x = text_width + gap
@@ -93,7 +95,8 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     x = 10
     padding_top = 12
     padding_bottom = 12
-    available_height = canvas_height - padding_top - padding_bottom
+    # Use qr_height for text spacing to keep it aligned with QR, ignoring bottom padding
+    available_height = qr_height - padding_top - padding_bottom
     
     # 4 lines of text, calculate equal spacing
     num_lines = 4
