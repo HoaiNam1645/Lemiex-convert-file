@@ -141,12 +141,15 @@ async def create_qr_and_upload(data: Dict[str, Any]) -> Dict[str, str]:
     # Generate image
     image_bytes = generate_qr_image(data)
     
-    # Create filename: {order_id}_{item_id}_{stt}_{total}_qr.png
+    # Create filename: {order_id}_{item_id}_{style}_{size}_{color}_{stt}_{total}_qr.png
     order_id = data.get('order_id', 0)
     order_item_id = data.get('order_item_id', 0)
+    style = data.get('style', '')
+    size = data.get('size', '')
+    color = data.get('color', '')
     stt = data.get('stt', 1)
     total = data.get('total', 1)
-    filename = f"{order_id}_{order_item_id}_{stt}_{total}_qr.png"
+    filename = f"{order_id}_{order_item_id}_{style}_{size}_{color}_{stt}_{total}_qr.png"
     
     # Upload to B2
     url = upload_qr_to_b2(image_bytes, filename)
