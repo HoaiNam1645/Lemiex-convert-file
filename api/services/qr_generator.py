@@ -144,9 +144,13 @@ async def create_qr_and_upload(data: Dict[str, Any]) -> Dict[str, str]:
     # Create filename: {order_id}_{item_id}_{style}_{size}_{color}_{stt}_{total}_qr.png
     order_id = data.get('order_id', 0)
     order_item_id = data.get('order_item_id', 0)
-    style = str(data.get('style', '')).replace(' ', '-')
-    size = str(data.get('size', '')).replace(' ', '-')
-    color = str(data.get('color', '')).replace(' ', '-')
+    import re
+    def sanitize(s):
+        return re.sub(r'[^a-zA-Z0-9]', '', str(s))
+
+    style = sanitize(data.get('style', ''))
+    size = sanitize(data.get('size', ''))
+    color = sanitize(data.get('color', ''))
     stt = data.get('stt', 1)
     total = data.get('total', 1)
     filename = f"{order_id}_{order_item_id}_{style}_{size}_{color}_{stt}_{total}_qr.png"
