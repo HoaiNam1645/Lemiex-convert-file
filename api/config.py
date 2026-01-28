@@ -47,3 +47,13 @@ B2_MERGED_IMAGE_PATH = os.getenv("B2_MERGED_IMAGE_PATH", "merged_image")
 
 # Callback API
 BE_API_URL = os.getenv("BE_API_URL")
+
+# Dropbox Configuration for Progress Scanner
+DROPBOX_ACCESS_TOKEN = os.getenv("DROPBOX_ACCESS_TOKEN")
+DROPBOX_ACCESS_KEY = os.getenv("DROPBOX_ACCESS_KEY")
+DROPBOX_PATH = os.getenv("DROPBOX_PATH", "/.Embroidery_Lemiex")
+
+# Embroidery Scanner Settings
+EMBROIDERY_ROOT = os.getenv("EMBROIDERY_ROOT")
+EMBROIDERY_REFRESH = int(os.getenv("EMBROIDERY_REFRESH", 180))
+EMBROIDERY_LOG_LEVEL = os.getenv("EMBROIDERY_LOG_LEVEL", "INFO")
