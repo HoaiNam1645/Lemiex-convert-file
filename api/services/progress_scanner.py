@@ -5,7 +5,8 @@ Scans PES files from Local/Dropbox and queries Lemiex API for order status
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Protocol, Sequence
 
@@ -27,7 +28,7 @@ class PesEntry:
     date_folder: str
     station: str
     order_id: str
-    path: str  # Changed from Path to str for JSON serialization
+    path: str
 
 
 @dataclass
@@ -46,13 +47,20 @@ class OrderStatus:
         return min(1.0, max(0.0, self.done_items / self.total_items))
 
     def to_dict(self):
-        """Convert to dict for JSON response"""
+        """Convert to dict matching Textual display logic"""
+        if self.pending_items:
+            pending_str = ", ".join(self.pending_items)
+            status_text = f"{self.order_id} -> {pending_str}"
+        else:
+            status_text = f"{self.order_id} -> all items complete"
+
         return {
-            "order_id": self.order_id,
+            "id": self.order_id,
+            "status_text": status_text,
+            "missing_items": self.pending_items,
+            # Keeping these for potential use, though user emphasized missing_items
             "done_items": self.done_items,
-            "total_items": self.total_items,
-            "completion": self.completion,
-            "pending_items": self.pending_items,
+            "total_items": self.total_items
         }
 
 
@@ -62,9 +70,23 @@ class StationProgress:
     orders: List[OrderStatus]
 
     def to_dict(self):
+        # Filter only pending orders for the list
+        pending_orders = [o for o in self.orders if o.pending_items]
+        
+        # Calculate totals for the station
+        total_items = sum(o.total_items for o in self.orders)
+        done_items = sum(o.done_items for o in self.orders)
+        
         return {
-            "name": self.name,
-            "orders": [order.to_dict() for order in self.orders]
+            "name": self.name.strip('/'),  # Clean up name if it has trailing slash
+            "has_pending": len(pending_orders) > 0,
+            "stats": {
+                "total": total_items,
+                "done": done_items,
+                "total_orders": len(self.orders),
+                "pending_orders_count": len(pending_orders)
+            },
+            "pending_orders": [order.to_dict() for order in pending_orders]
         }
 
 
@@ -85,13 +107,15 @@ class DateProgress:
 
     def to_dict(self):
         return {
-            "name": self.name,
-            "stations": [station.to_dict() for station in self.stations],
-            "done_items": self.done_items,
-            "total_items": self.total_items,
-            "completed_orders": self.completed_orders,
-            "total_orders": self.total_orders,
-            "completion": self.completion,
+            "date": self.name,
+            "stats": {
+                "total_orders": self.total_orders,
+                "done_orders": self.completed_orders,
+                "total_items": self.total_items,
+                "done_items": self.done_items,
+                "percent": round(self.completion * 100, 1)
+            },
+            "stations": [station.to_dict() for station in self.stations]
         }
 
 
@@ -112,12 +136,21 @@ class ProgressSnapshot:
             return 0.0
         return min(1.0, max(0.0, total_done / total_items))
 
-    def to_dict(self):
+    def to_dict(self, source: str = "Unknown"):
+        total_items = sum(date.total_items for date in self.dates)
+        done_items = sum(date.done_items for date in self.dates)
+        
         return {
-            "dates": [date.to_dict() for date in self.dates],
-            "missing_ids": self.missing_ids,
-            "order_count": self.order_count,
-            "overall_completion": self.overall_completion,
+            "summary": {
+                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total_dates": len(self.dates),
+                "total_orders": self.order_count,
+                "total_items": total_items,
+                "done_items": done_items,
+                "percent_complete": round(self.overall_completion * 100, 1),
+                "source": source
+            },
+            "dates": [date.to_dict() for date in self.dates]
         }
 
 

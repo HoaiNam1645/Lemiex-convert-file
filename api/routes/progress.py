@@ -33,7 +33,6 @@ class ProgressResponse(BaseModel):
     success: bool
     data: Optional[dict] = None
     error: Optional[str] = None
-    source: Optional[str] = None
 
 
 def build_scanner(
@@ -79,19 +78,16 @@ async def get_progress(
     """
     Get embroidery production progress
     
-    Scans PES files from Local/Dropbox and queries Lemiex API for order status.
-    Returns comprehensive progress data in JSON format.
+    Returns comprehensive progress data in JSON format, structured for UI rendering.
     
-    **Priority:**
-    1. If dropbox_token or dropbox_key is provided (or set in env) → scan Dropbox
-    2. Otherwise → scan local filesystem
-    
-    **Response includes:**
-    - Dates with progress (done/total items, completion %)
-    - Stations within each date
-    - Orders with status (done/total items, pending items)
-    - Overall completion statistics
-    - Missing order IDs (not found in API)
+    **Structure:**
+    - **summary**: Overall statistics (total dates, orders, items, completion %)
+    - **dates**: List of dates
+        - **stats**: Statistics for the specific date
+        - **stations**: List of stations
+            - **has_pending**: Boolean flag if station has pending orders
+            - **stats**: Station statistics
+            - **pending_orders**: List of pending orders with formatted status text
     """
     try:
         # Build scanner (will use env vars by default)
@@ -108,12 +104,11 @@ async def get_progress(
         snapshot = collector.collect()
         
         # Convert to JSON-serializable dict
-        progress_data = snapshot.to_dict()
+        progress_data = snapshot.to_dict(source=source)
         
         return ProgressResponse(
             success=True,
             data=progress_data,
-            source=source,
         )
         
     except Exception as e:
@@ -131,9 +126,8 @@ async def get_progress_summary(
     local_root: Optional[str] = Query(None, description="Local root folder path (optional, default from env)"),
 ):
     """
-    Get embroidery production progress summary (lightweight version)
-    
-    Returns only high-level statistics without detailed order information.
+    Get embroidery production progress summary only
+    (Returns same structure but without detailed station info)
     """
     try:
         # Build scanner (will use env vars by default)
@@ -149,29 +143,17 @@ async def get_progress_summary(
         collector = ProgressCollector(scanner, client)
         snapshot = collector.collect()
         
-        # Build summary only
-        summary_data = {
-            "order_count": snapshot.order_count,
-            "overall_completion": snapshot.overall_completion,
-            "date_count": len(snapshot.dates),
-            "missing_ids_count": len(snapshot.missing_ids),
-            "dates_summary": [
-                {
-                    "name": date.name,
-                    "completion": date.completion,
-                    "done_items": date.done_items,
-                    "total_items": date.total_items,
-                    "completed_orders": date.completed_orders,
-                    "total_orders": date.total_orders,
-                }
-                for date in snapshot.dates
-            ],
-        }
+        # Use full dict structure but remove detailed stations for lightweight summary
+        full_data = snapshot.to_dict(source=source)
+        
+        # Strip out stations details for summary view
+        for date in full_data.get("dates", []):
+            if "stations" in date:
+                del date["stations"]
         
         return ProgressResponse(
             success=True,
-            data=summary_data,
-            source=source,
+            data=full_data,
         )
         
     except Exception as e:
