@@ -204,7 +204,9 @@ class PesScanner:
         if not parts:
             return None
         candidate = parts[0]
-        return candidate if candidate.isdigit() else None
+        # Normalize to remove leading zeros (e.g. "00214" -> "214")
+        # to match API response format
+        return str(int(candidate)) if candidate.isdigit() else None
 
 
 class DropboxClient:
@@ -548,21 +550,10 @@ class LemiexClient:
 
     @staticmethod
     def _chunk_ids(ids: Sequence[str]) -> List[List[str]]:
-        chunks: List[List[str]] = []
-        current: List[str] = []
-        current_len = 0
-        for order_id in ids:
-            projected = len(order_id) if not current else len(order_id) + 1
-            if current and current_len + projected > MAX_QUERY_LENGTH:
-                chunks.append(current)
-                current = [order_id]
-                current_len = len(order_id)
-            else:
-                current.append(order_id)
-                current_len += projected
-        if current:
-            chunks.append(current)
-        return chunks
+        # Use fixed chunk size of 50 instead of complex length calculation
+        # This is safer for most APIs to avoid URL length limits or server processing limits
+        CHUNK_SIZE = 50
+        return [list(ids[i:i + CHUNK_SIZE]) for i in range(0, len(ids), CHUNK_SIZE)]
 
     def _parse_payload(self, payload: object) -> Dict[str, OrderStatus]:
         items: List[dict] = []
@@ -731,6 +722,8 @@ class ProgressCollector:
         entries = self.scanner.scan()
         ids = sorted({entry.order_id for entry in entries})
         LOGGER.info("Found %d unique Order IDs. Querying API...", len(ids))
+        if ids:
+            LOGGER.info(f"Sample IDs found: {ids[:10]}")
         statuses = self.client.lookup(ids) if ids else {}
 
         date_map: Dict[str, dict] = {}
