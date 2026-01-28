@@ -118,46 +118,4 @@ async def get_progress(
         )
 
 
-@router.get("/progress/summary", response_model=ProgressResponse)
-async def get_progress_summary(
-    dropbox_token: Optional[str] = Query(None, description="Dropbox access token (optional, uses env var if not provided)"),
-    dropbox_key: Optional[str] = Query(None, description="Dropbox API key (optional, uses env var if not provided)"),
-    dropbox_path: Optional[str] = Query(None, description="Dropbox folder path (optional, default from env)"),
-    local_root: Optional[str] = Query(None, description="Local root folder path (optional, default from env)"),
-):
-    """
-    Get embroidery production progress summary only
-    (Returns same structure but without detailed station info)
-    """
-    try:
-        # Build scanner (will use env vars by default)
-        scanner, source = build_scanner(
-            dropbox_token=dropbox_token,
-            dropbox_key=dropbox_key,
-            dropbox_path=dropbox_path,
-            local_root=local_root,
-        )
-        
-        # Collect progress data
-        client = LemiexClient()
-        collector = ProgressCollector(scanner, client)
-        snapshot = collector.collect()
-        
-        # Use full dict structure but remove detailed stations for lightweight summary
-        full_data = snapshot.to_dict(source=source)
-        
-        # Strip out stations details for summary view
-        for date in full_data.get("dates", []):
-            if "stations" in date:
-                del date["stations"]
-        
-        return ProgressResponse(
-            success=True,
-            data=full_data,
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to collect progress summary: {str(e)}"
-        )
+
