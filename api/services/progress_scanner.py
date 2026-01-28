@@ -508,6 +508,9 @@ class LemiexClient:
     def __init__(self, base_url: str = API_ENDPOINT) -> None:
         self.base_url = base_url.rstrip("?")
         self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
         self.cache: Dict[str, OrderStatus] = {}
 
     def clear_cache(self) -> None:
@@ -517,6 +520,9 @@ class LemiexClient:
         normalized_ids = [str(order_id) for order_id in ids if order_id]
         result: Dict[str, OrderStatus] = {}
         ids_to_fetch = [order_id for order_id in normalized_ids if order_id not in self.cache]
+        
+        if ids_to_fetch:
+            LOGGER.info(f"Fetching statuses for {len(ids_to_fetch)} orders...")
 
         for chunk in self._chunk_ids(ids_to_fetch):
             try:
@@ -663,13 +669,18 @@ class LemiexClient:
     def _item_is_complete(item: object) -> bool:
         if not isinstance(item, dict):
             return False
+            
+        # Prioritize checking metas if they exist
+        # This fixes the issue where item.status=1 but metas are still 0
+        metas = item.get("order_item_metas")
+        if isinstance(metas, list) and metas:
+            return all(LemiexClient._meta_is_complete(meta) for meta in metas)
+
+        # Fallback to item status if no metas
         status_value = str(item.get("status", "")).lower()
         if status_value in {"done", "complete", "completed", "fulfilled", "produced", "1", "true"}:
             return True
 
-        metas = item.get("order_item_metas")
-        if isinstance(metas, list) and metas:
-            return all(LemiexClient._meta_is_complete(meta) for meta in metas)
         return False
 
     @staticmethod
