@@ -39,6 +39,11 @@ class OrderStatus:
     total_items: int
     pending_items: List[str] = field(default_factory=list)
     raw: Optional[dict] = None
+    # Flow status fields (1 = done, 0 = pending)
+    produced: bool = False
+    qc_done: bool = False
+    packed: bool = False
+    shipped: bool = False
 
     @property
     def completion(self) -> float:
@@ -58,9 +63,13 @@ class OrderStatus:
             "id": self.order_id,
             "status_text": status_text,
             "missing_items": self.pending_items,
-            # Keeping these for potential use, though user emphasized missing_items
             "done_items": self.done_items,
-            "total_items": self.total_items
+            "total_items": self.total_items,
+            # Flow status
+            "produced": self.produced,
+            "qc_done": self.qc_done,
+            "packed": self.packed,
+            "shipped": self.shipped
         }
 
 
@@ -77,14 +86,31 @@ class StationProgress:
         total_items = sum(o.total_items for o in self.orders)
         done_items = sum(o.done_items for o in self.orders)
         
+        # Calculate flow stage counts
+        total_orders = len(self.orders)
+        produced_count = sum(1 for o in self.orders if o.produced)
+        qc_count = sum(1 for o in self.orders if o.qc_done)
+        packed_count = sum(1 for o in self.orders if o.packed)
+        shipped_count = sum(1 for o in self.orders if o.shipped)
+        
         return {
             "name": self.name.strip('/'),  # Clean up name if it has trailing slash
             "has_pending": len(pending_orders) > 0,
             "stats": {
                 "total": total_items,
                 "done": done_items,
-                "total_orders": len(self.orders),
+                "total_orders": total_orders,
                 "pending_orders_count": len(pending_orders)
+            },
+            "flow_stats": {
+                "produced": produced_count,
+                "qc_done": qc_count,
+                "packed": packed_count,
+                "shipped": shipped_count,
+                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
             },
             "pending_orders": [order.to_dict() for order in pending_orders]
         }
@@ -106,6 +132,14 @@ class DateProgress:
         return min(1.0, max(0.0, self.done_items / self.total_items))
 
     def to_dict(self):
+        # Aggregate flow stats from all stations
+        all_orders = [o for station in self.stations for o in station.orders]
+        total_orders = len(all_orders)
+        produced_count = sum(1 for o in all_orders if o.produced)
+        qc_count = sum(1 for o in all_orders if o.qc_done)
+        packed_count = sum(1 for o in all_orders if o.packed)
+        shipped_count = sum(1 for o in all_orders if o.shipped)
+        
         return {
             "date": self.name,
             "stats": {
@@ -114,6 +148,16 @@ class DateProgress:
                 "total_items": self.total_items,
                 "done_items": self.done_items,
                 "percent": round(self.completion * 100, 1)
+            },
+            "flow_stats": {
+                "produced": produced_count,
+                "qc_done": qc_count,
+                "packed": packed_count,
+                "shipped": shipped_count,
+                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
             },
             "stations": [station.to_dict() for station in self.stations]
         }
@@ -140,6 +184,14 @@ class ProgressSnapshot:
         total_items = sum(date.total_items for date in self.dates)
         done_items = sum(date.done_items for date in self.dates)
         
+        # Aggregate flow stats from all orders
+        all_orders = [o for date in self.dates for station in date.stations for o in station.orders]
+        total_orders = len(all_orders)
+        produced_count = sum(1 for o in all_orders if o.produced)
+        qc_count = sum(1 for o in all_orders if o.qc_done)
+        packed_count = sum(1 for o in all_orders if o.packed)
+        shipped_count = sum(1 for o in all_orders if o.shipped)
+        
         return {
             "summary": {
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -149,6 +201,16 @@ class ProgressSnapshot:
                 "done_items": done_items,
                 "percent_complete": round(self.overall_completion * 100, 1),
                 "source": source
+            },
+            "flow_summary": {
+                "produced": produced_count,
+                "qc_done": qc_count,
+                "packed": packed_count,
+                "shipped": shipped_count,
+                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
             },
             "dates": [date.to_dict() for date in self.dates]
         }
@@ -584,26 +646,34 @@ class LemiexClient:
             return None
         order_id = str(order_id)
 
-        # New API Format Handler (Flow based)
+        # Parse fulfill_status for flow tracking
+        # Order flow: new_order → confirm → producing → qc_pass → packed → shipped
+        fulfill_status = str(data.get("fulfill_status", "")).lower()
+        
+        # Define status hierarchy
+        STATUS_ORDER = ["new_order", "confirm", "producing", "qc_pass", "packed", "shipped"]
+        
+        def status_reached(target: str) -> bool:
+            """Check if order has reached or passed a specific status"""
+            if fulfill_status not in STATUS_ORDER:
+                return False
+            if target not in STATUS_ORDER:
+                return False
+            return STATUS_ORDER.index(fulfill_status) >= STATUS_ORDER.index(target)
+        
+        # Determine flow statuses based on fulfill_status
+        is_produced = status_reached("producing")  # producing or beyond
+        qc_done = status_reached("qc_pass")        # qc_pass or beyond
+        packed = status_reached("packed")          # packed or beyond
+        shipped = status_reached("shipped")        # shipped
+
+        # Legacy flow-based format handler
         if "flow" in data and isinstance(data["flow"], dict):
             flow = data["flow"]
-            is_produced = str(flow.get("status")) == "1"
-            
-            done_items = 1 if is_produced else 0
-            total_items = 1
-            
-            pending_items = []
-            if not is_produced:
-                current = data.get("current_step") or "pending"
-                pending_items = [current]
-                
-            return OrderStatus(
-                order_id=order_id,
-                done_items=done_items,
-                total_items=total_items,
-                pending_items=pending_items,
-                raw=data,
-            )
+            is_produced = str(flow.get("status")) == "1" or is_produced
+            qc_done = str(flow.get("qc_status", 0)) == "1" or qc_done
+            packed = str(flow.get("packed_status", 0)) == "1" or packed
+            shipped = str(flow.get("shipped_status", 0)) == "1" or shipped
 
         items = data.get("items") or data.get("line_items") or []
         items_list = items if isinstance(items, list) else []
@@ -654,6 +724,10 @@ class LemiexClient:
             total_items=total_items,
             pending_items=pending_items,
             raw=data,
+            produced=is_produced,
+            qc_done=qc_done,
+            packed=packed,
+            shipped=shipped,
         )
 
     @staticmethod
