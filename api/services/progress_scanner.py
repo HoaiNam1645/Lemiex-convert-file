@@ -40,7 +40,6 @@ class OrderStatus:
     pending_items: List[str] = field(default_factory=list)
     raw: Optional[dict] = None
     # Flow status fields (1 = done, 0 = pending)
-    produced: bool = False
     qc_done: bool = False
     packed: bool = False
     shipped: bool = False
@@ -66,7 +65,6 @@ class OrderStatus:
             "done_items": self.done_items,
             "total_items": self.total_items,
             # Flow status
-            "produced": self.produced,
             "qc_done": self.qc_done,
             "packed": self.packed,
             "shipped": self.shipped
@@ -86,9 +84,8 @@ class StationProgress:
         total_items = sum(o.total_items for o in self.orders)
         done_items = sum(o.done_items for o in self.orders)
         
-        # Calculate flow stage counts
+        # Calculate flow stage counts (without produced)
         total_orders = len(self.orders)
-        produced_count = sum(1 for o in self.orders if o.produced)
         qc_count = sum(1 for o in self.orders if o.qc_done)
         packed_count = sum(1 for o in self.orders if o.packed)
         shipped_count = sum(1 for o in self.orders if o.shipped)
@@ -103,11 +100,9 @@ class StationProgress:
                 "pending_orders_count": len(pending_orders)
             },
             "flow_stats": {
-                "produced": produced_count,
                 "qc_done": qc_count,
                 "packed": packed_count,
                 "shipped": shipped_count,
-                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
@@ -135,10 +130,16 @@ class DateProgress:
         # Aggregate flow stats from all stations
         all_orders = [o for station in self.stations for o in station.orders]
         total_orders = len(all_orders)
-        produced_count = sum(1 for o in all_orders if o.produced)
+        
+        # Count completed for each stage
         qc_count = sum(1 for o in all_orders if o.qc_done)
         packed_count = sum(1 for o in all_orders if o.packed)
         shipped_count = sum(1 for o in all_orders if o.shipped)
+        
+        # Get pending order IDs for each stage (NOT completed)
+        pending_qc = [o.order_id for o in all_orders if not o.qc_done]
+        pending_packed = [o.order_id for o in all_orders if not o.packed]
+        pending_shipped = [o.order_id for o in all_orders if not o.shipped]
         
         return {
             "date": self.name,
@@ -150,14 +151,16 @@ class DateProgress:
                 "percent": round(self.completion * 100, 1)
             },
             "flow_stats": {
-                "produced": produced_count,
                 "qc_done": qc_count,
                 "packed": packed_count,
                 "shipped": shipped_count,
-                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
-                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
+                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                # Pending order IDs for each stage
+                "pending_qc": pending_qc,
+                "pending_packed": pending_packed,
+                "pending_shipped": pending_shipped
             },
             "stations": [station.to_dict() for station in self.stations]
         }
@@ -184,10 +187,9 @@ class ProgressSnapshot:
         total_items = sum(date.total_items for date in self.dates)
         done_items = sum(date.done_items for date in self.dates)
         
-        # Aggregate flow stats from all orders
+        # Aggregate flow stats from all orders (without produced)
         all_orders = [o for date in self.dates for station in date.stations for o in station.orders]
         total_orders = len(all_orders)
-        produced_count = sum(1 for o in all_orders if o.produced)
         qc_count = sum(1 for o in all_orders if o.qc_done)
         packed_count = sum(1 for o in all_orders if o.packed)
         shipped_count = sum(1 for o in all_orders if o.shipped)
@@ -203,11 +205,9 @@ class ProgressSnapshot:
                 "source": source
             },
             "flow_summary": {
-                "produced": produced_count,
                 "qc_done": qc_count,
                 "packed": packed_count,
                 "shipped": shipped_count,
-                "produced_pct": round(produced_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
                 "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
@@ -661,8 +661,7 @@ class LemiexClient:
                 return False
             return STATUS_ORDER.index(fulfill_status) >= STATUS_ORDER.index(target)
         
-        # Determine flow statuses based on fulfill_status
-        is_produced = status_reached("producing")  # producing or beyond
+        # Determine flow statuses based on fulfill_status (without produced)
         qc_done = status_reached("qc_pass")        # qc_pass or beyond
         packed = status_reached("packed")          # packed or beyond
         shipped = status_reached("shipped")        # shipped
@@ -670,7 +669,6 @@ class LemiexClient:
         # Legacy flow-based format handler
         if "flow" in data and isinstance(data["flow"], dict):
             flow = data["flow"]
-            is_produced = str(flow.get("status")) == "1" or is_produced
             qc_done = str(flow.get("qc_status", 0)) == "1" or qc_done
             packed = str(flow.get("packed_status", 0)) == "1" or packed
             shipped = str(flow.get("shipped_status", 0)) == "1" or shipped
@@ -724,7 +722,6 @@ class LemiexClient:
             total_items=total_items,
             pending_items=pending_items,
             raw=data,
-            produced=is_produced,
             qc_done=qc_done,
             packed=packed,
             shipped=shipped,
