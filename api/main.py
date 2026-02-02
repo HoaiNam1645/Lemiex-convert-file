@@ -38,6 +38,29 @@ async def health_check():
     return {"status": "healthy", "service": "pes-embroidery-api"}
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    import os
+    import asyncio
+    from services.background_store import get_store
+    
+    # Configure Progress Store
+    store = get_store()
+    dropbox_token = os.getenv("DROPBOX_ACCESS_TOKEN", "")
+    dropbox_key = os.getenv("DROPBOX_ACCESS_KEY", "")
+    dropbox_path = os.getenv("DROPBOX_PATH", "/.Embroidery_Lemiex")
+    
+    store.configure(
+        root_path=dropbox_path,
+        dropbox_token=dropbox_token,
+        dropbox_key=dropbox_key
+    )
+    
+    # Start background task
+    asyncio.create_task(store.start_background_task())
+
+
 # Include routers
 app.include_router(convert.router, prefix="/pes-api", tags=["Convert"])
 app.include_router(preview.router, prefix="/pes-api", tags=["Preview"])

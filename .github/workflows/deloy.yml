@@ -1,0 +1,46 @@
+name: CI/CD Deploy Python
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.IP_SERVER }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          debug: true
+          script: |
+            set -e
+
+            echo "Connected successfully"
+            cd /var/www/Lemiex-convert-file
+
+            git pull origin main
+
+            if [ ! -d "venv" ]; then
+              python3.12 -m venv venv
+            fi
+
+            source venv/bin/activate
+
+            pip install --no-cache-dir -r requirements.txt
+
+            systemctl restart pes-api
+
+            echo "Deploy done!"

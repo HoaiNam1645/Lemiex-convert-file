@@ -6,7 +6,7 @@ Scans PES files from Local/Dropbox and queries Lemiex API for order status
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Protocol, Sequence
 
@@ -344,18 +344,49 @@ class DropboxPesScanner:
 
     def __init__(self, token_provider: DropboxTokenProvider, root_path: str) -> None:
         self.token_provider = token_provider
+        self.root_path = root_path
         self.path_candidates = self._build_path_candidates(root_path)
+        self.days_limit: Optional[int] = None
+
+    def set_days_limit(self, days: int):
+        """Limit scan to recent N days."""
+        self.days_limit = days
 
     def scan(self) -> List[PesEntry]:
         token = self.token_provider.ensure_token()
+
         if not token:
             LOGGER.error("No Dropbox token available; skipping Dropbox scan")
             return []
 
         client = DropboxClient(token)
+        
+        # If limiting by days, calculate valid date range
+        valid_dates = None
+        if self.days_limit:
+            valid_dates = set()
+            today = datetime.now()
+            for i in range(self.days_limit + 1):
+                d = today - timedelta(days=i)
+                # Support common date formats found in folder names
+                valid_dates.add(d.strftime("%m-%d-%Y"))
+                valid_dates.add(d.strftime("%d-%m-%Y"))
+                valid_dates.add(d.strftime("%Y-%m-%d"))
+
+        all_entries = []
         for idx, api_path in enumerate(self.path_candidates):
             try:
+                # If we have a days limit, we scan root strictly first to filter folders
+                if valid_dates and (api_path == "" or api_path == self.root_path):
+                     filtered_entries = self._scan_filtered_by_date(client, api_path, valid_dates)
+                     all_entries.extend(filtered_entries)
+                     if filtered_entries:
+                         return all_entries # Found data in limit mode, return
+                     continue
+
+                # Fallback to full recursive scan if no limit or not filtering
                 entries = self._scan_with_client(client, api_path)
+                return entries
             except requests.HTTPError as exc:
                 if self._should_reset_token(exc):
                     LOGGER.warning("Dropbox access error (%s); attempting token reset", exc)
@@ -397,7 +428,40 @@ class DropboxPesScanner:
             )
             return []
 
-        return []
+        return all_entries
+
+    def _scan_filtered_by_date(self, client: DropboxClient, root: str, valid_dates: set) -> List[PesEntry]:
+        """Scan only folders matching the date filter."""
+        entries: List[PesEntry] = []
+        LOGGER.info(f"Smart Scan: Listing folders in {root or '/'} to filter by recent {self.days_limit} days")
+        
+        # List root level folders non-recursively
+        # Note: We use iter_entries with recursive=False
+        try:
+            for entry in client.iter_entries(root, recursive=False):
+                if entry.get(".tag") != "folder":
+                    continue
+                
+                name = entry.get("name", "")
+                # Simple check: if folder name is in our valid date strings
+                # Or contains it (e.g. "01-30-2026_special")
+                is_match = False
+                for date_str in valid_dates:
+                    if date_str in name:
+                        is_match = True
+                        break
+                
+                if is_match:
+                    path_display = entry.get("path_display", "")
+                    LOGGER.info(f"Smart Scan: Found recent folder {name}, scanning recursively...")
+                    # Scan this folder recursively
+                    folder_entries = self._scan_with_client(client, path_display)
+                    entries.extend(folder_entries)
+                    
+            return entries
+        except Exception as e:
+            LOGGER.error(f"Error in smart scan filtered listing: {e}")
+            return []
 
     def _scan_with_client(self, client: DropboxClient, api_path: str) -> List[PesEntry]:
         entries: List[PesEntry] = []
