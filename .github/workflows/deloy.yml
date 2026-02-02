@@ -37,7 +37,11 @@ jobs:
               python3.12 -m venv venv
             fi
 
+            # Activate venv (optional)
             source venv/bin/activate
+
+            # Đi vào folder chứa requirements.txt
+            cd api
 
             pip install --no-cache-dir -r requirements.txt
 
