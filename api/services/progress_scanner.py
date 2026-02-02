@@ -128,18 +128,25 @@ class DateProgress:
 
     def to_dict(self):
         # Aggregate flow stats from all stations
-        all_orders = [o for station in self.stations for o in station.orders]
-        total_orders = len(all_orders)
+        # Flatten all orders from all stations
+        all_orders_flat = [o for station in self.stations for o in station.orders]
         
-        # Count completed for each stage
-        qc_count = sum(1 for o in all_orders if o.qc_done)
-        packed_count = sum(1 for o in all_orders if o.packed)
-        shipped_count = sum(1 for o in all_orders if o.shipped)
+        # Deduplicate to get distinct orders by ID
+        # This prevents double-counting if an order passes through multiple stations
+        unique_orders_map = {o.order_id: o for o in all_orders_flat}
+        unique_orders = list(unique_orders_map.values())
+        
+        total_unique_orders = len(unique_orders)
+        
+        # Count completed for each stage based on UNIQUE orders
+        qc_count = sum(1 for o in unique_orders if o.qc_done)
+        packed_count = sum(1 for o in unique_orders if o.packed)
+        shipped_count = sum(1 for o in unique_orders if o.shipped)
         
         # Get pending order IDs for each stage (NOT completed)
-        pending_qc = [o.order_id for o in all_orders if not o.qc_done]
-        pending_packed = [o.order_id for o in all_orders if not o.packed]
-        pending_shipped = [o.order_id for o in all_orders if not o.shipped]
+        pending_qc = [o.order_id for o in unique_orders if not o.qc_done]
+        pending_packed = [o.order_id for o in unique_orders if not o.packed]
+        pending_shipped = [o.order_id for o in unique_orders if not o.shipped]
         
         return {
             "date": self.name,
@@ -154,9 +161,9 @@ class DateProgress:
                 "qc_done": qc_count,
                 "packed": packed_count,
                 "shipped": shipped_count,
-                "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
-                "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
-                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0,
+                "qc_pct": round(qc_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0,
+                "packed_pct": round(packed_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0,
+                "shipped_pct": round(shipped_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0,
                 # Pending order IDs for each stage
                 "pending_qc": pending_qc,
                 "pending_packed": pending_packed,
@@ -187,18 +194,22 @@ class ProgressSnapshot:
         total_items = sum(date.total_items for date in self.dates)
         done_items = sum(date.done_items for date in self.dates)
         
-        # Aggregate flow stats from all orders (without produced)
-        all_orders = [o for date in self.dates for station in date.stations for o in station.orders]
-        total_orders = len(all_orders)
-        qc_count = sum(1 for o in all_orders if o.qc_done)
-        packed_count = sum(1 for o in all_orders if o.packed)
-        shipped_count = sum(1 for o in all_orders if o.shipped)
+        # Aggregate flow stats from all orders (Deduplicated)
+        all_orders_flat = [o for date in self.dates for station in date.stations for o in station.orders]
+        unique_orders_map = {o.order_id: o for o in all_orders_flat}
+        unique_orders = list(unique_orders_map.values())
+        
+        total_unique_orders = len(unique_orders)
+        
+        qc_count = sum(1 for o in unique_orders if o.qc_done)
+        packed_count = sum(1 for o in unique_orders if o.packed)
+        shipped_count = sum(1 for o in unique_orders if o.shipped)
         
         return {
             "summary": {
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "total_dates": len(self.dates),
-                "total_orders": self.order_count,
+                "total_orders": total_unique_orders, # Use unique count here
                 "total_items": total_items,
                 "done_items": done_items,
                 "percent_complete": round(self.overall_completion * 100, 1),
@@ -208,9 +219,9 @@ class ProgressSnapshot:
                 "qc_done": qc_count,
                 "packed": packed_count,
                 "shipped": shipped_count,
-                "qc_pct": round(qc_count / total_orders * 100, 1) if total_orders > 0 else 0,
-                "packed_pct": round(packed_count / total_orders * 100, 1) if total_orders > 0 else 0,
-                "shipped_pct": round(shipped_count / total_orders * 100, 1) if total_orders > 0 else 0
+                "qc_pct": round(qc_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0,
+                "packed_pct": round(packed_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0,
+                "shipped_pct": round(shipped_count / total_unique_orders * 100, 1) if total_unique_orders > 0 else 0
             },
             "dates": [date.to_dict() for date in self.dates]
         }
