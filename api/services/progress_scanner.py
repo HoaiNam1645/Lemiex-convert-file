@@ -459,6 +459,9 @@ class DropboxPesScanner:
                     entries.extend(folder_entries)
                     
             return entries
+        except requests.HTTPError:
+            # Re-raise HTTP errors to let the main loop handle token refresh
+            raise
         except Exception as e:
             LOGGER.error(f"Error in smart scan filtered listing: {e}")
             return []
