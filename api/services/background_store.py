@@ -55,9 +55,6 @@ class ProgressStore:
                 "message": "Data is initializing..."
             }
         
-        # Add metadata about freshness
-        age = time.time() - self._last_updated
-        self._data["cache_age_seconds"] = round(age, 1)
         return self._data
         
     async def start_background_task(self):
@@ -88,7 +85,7 @@ class ProgressStore:
             snapshot = await loop.run_in_executor(None, self._perform_scan)
             
             if snapshot:
-                self._data = snapshot.to_dict(source=f"Dropbox (Cached {datetime.now().strftime('%H:%M:%S')})")
+                self._data = snapshot.to_dict(source="Dropbox")
                 self._last_updated = time.time()
                 LOGGER.info(f"Background scan completed in {time.time() - start_time:.2f}s")
                 
