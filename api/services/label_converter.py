@@ -80,8 +80,21 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
         clean = re.sub(r'[\s-]+', '', m)
         if len(clean) >= 18 and clean.startswith('1Z'):
             return clean
+    
+    # 2. PRIORITY: Look for USPS TRACKING # section specifically
+    # This is more reliable as it appears right below "USPS TRACKING #" text
+    usps_tracking_pattern = re.search(
+        r'USPS\s*TRACKING\s*#?\s*[\n\r]*[^\d]*(\d[\d\s]{18,26})',
+        pdf_text.upper()
+    )
+    if usps_tracking_pattern:
+        tracking = re.sub(r'\s+', '', usps_tracking_pattern.group(1))
+        if len(tracking) >= 20 and len(tracking) <= 26:
+            if tracking.startswith(('92', '93', '94', '95', '42')):
+                print(f"Found USPS tracking from header: {tracking}")
+                return tracking
             
-    # 2. Extract digit-only sequences that might be tracking numbers
+    # 3. Extract digit-only sequences that might be tracking numbers
     # Look for sequences of at least 12 digits, allowing spaces/dashes
     digit_sequences = re.findall(r'(?:\d[\s-]*){12,35}', pdf_text)
     
@@ -90,15 +103,44 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
         clean = re.sub(r'[\s-]+', '', seq)
         if len(clean) >= 12:
             cleaned_candidates.append(clean)
-            
-    # Sort by length (descending) to prefer longer matches (like USPS 92...)
-    cleaned_candidates.sort(key=len, reverse=True)
     
+    # Filter out sequences that are too long (likely concatenated with ZIP codes)
+    # Valid USPS tracking is 20-22 digits, not 30+
+    valid_candidates = []
     for candidate in cleaned_candidates:
-        # USPS: 20-34 digits (often starts with 9, 4, 0)
-        if carrier == 0 or carrier == -1: # Default or Unknown
-            if len(candidate) >= 20 and len(candidate) <= 34:
-                if candidate.startswith(('9', '4', '0')):
+        # Skip if too long (probably ZIP + tracking concatenated)
+        if len(candidate) > 26:
+            # Try to extract valid 22-digit USPS tracking from the end
+            # ZIP codes are 9 digits (5+4), so tracking might be at position 9+
+            if len(candidate) >= 31:  # 9 (zip) + 22 (tracking)
+                # Check if last 22 digits look like USPS tracking
+                potential_tracking = candidate[-22:]
+                if potential_tracking.startswith(('92', '93', '94', '95', '42')):
+                    valid_candidates.append(potential_tracking)
+                    continue
+            continue
+        valid_candidates.append(candidate)
+    
+    # Sort by preference:
+    # 1. Exact 22-digit starting with 94 (most common USPS Ground)
+    # 2. Exact 22-digit starting with 92/93/95
+    # 3. 20-26 digits starting with common prefixes
+    def tracking_priority(t):
+        if len(t) == 22 and t.startswith('94'):
+            return 0
+        if len(t) == 22 and t.startswith(('92', '93', '95')):
+            return 1
+        if 20 <= len(t) <= 26 and t.startswith(('92', '93', '94', '95', '42')):
+            return 2
+        return 10
+    
+    valid_candidates.sort(key=lambda x: (tracking_priority(x), -len(x)))
+    
+    for candidate in valid_candidates:
+        # USPS: 20-26 digits (often starts with 9)
+        if carrier == 0 or carrier == -1:  # Default or Unknown
+            if len(candidate) >= 20 and len(candidate) <= 26:
+                if candidate.startswith(('9', '4', '0', '42')):
                     return candidate
         
         # FedEx: 12, 14, 15, 20 digits (often starts with 96, 78, etc but vary)
@@ -106,9 +148,9 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
             if len(candidate) in [12, 14, 15, 20]:
                 return candidate
                 
-    # Fallback: if we found a very likely USPS tracking (starts with 92/93/94/95 and length 22-26), returns it even if carrier detected as something else
-    for candidate in cleaned_candidates:
-        if len(candidate) >= 22 and len(candidate) <= 26 and candidate.startswith(('92', '93', '94', '95')):
+    # Fallback: if we found a very likely USPS tracking (starts with 92/93/94/95 and length 22), return it
+    for candidate in valid_candidates:
+        if len(candidate) == 22 and candidate.startswith(('92', '93', '94', '95')):
             return candidate
 
     return None
