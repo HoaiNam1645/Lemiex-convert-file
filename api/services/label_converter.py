@@ -15,7 +15,7 @@ from typing import Optional, Tuple, Dict, Any
 from io import BytesIO
 
 import pdfplumber
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import pypdfium2 as pdfium
 from config import DOWNLOAD_TIMEOUT, BE_API_URL
 from services.b2_storage import upload_label_to_b2
@@ -65,7 +65,7 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
     """
     Extract tracking number from PDF text based on carrier type
     
-    USPS: 20-22 digits or 13 characters ending in US
+    USPS: commonly 20-34 digits or 13 characters ending in US
     FedEx: 12-15 digits
     UPS: 1Z followed by 16 alphanumeric characters
     """
@@ -74,8 +74,6 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
     
     # Extract all sequences of digits (allowing spaces/dashes between them)
     # This captures "9200 1903..." as one group
-    potential_numbers = []
-    
     # 1. UPS: 1Z...
     ups_matches = re.findall(r'1Z\s*[A-Z0-9\s]{16,25}', pdf_text.upper())
     for m in ups_matches:
@@ -114,6 +112,39 @@ def extract_tracking_number(pdf_text: str, carrier: int) -> Optional[str]:
             return candidate
 
     return None
+
+
+def extract_tracking_number_from_image(image: Image.Image, carrier: int) -> Optional[str]:
+    """
+    OCR the bottom tracking area to recover tracking numbers missing in the PDF text layer.
+    """
+    try:
+        import pytesseract
+
+        width, height = image.size
+        tracking_region = image.crop((0, int(height * 0.62), width, height))
+
+        grayscale = ImageOps.grayscale(tracking_region)
+        # Increase contrast for barcode text and normalize to black/white.
+        high_contrast = ImageOps.autocontrast(grayscale)
+        binary = high_contrast.point(lambda px: 255 if px > 180 else 0, mode="1")
+        enlarged = binary.resize((binary.width * 2, binary.height * 2))
+
+        if not shutil.which('tesseract'):
+            if os.path.exists('/usr/bin/tesseract'):
+                pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+            elif os.path.exists('/usr/local/bin/tesseract'):
+                pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
+
+        ocr_text = pytesseract.image_to_string(
+            enlarged,
+            config='--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        )
+        print(f"Tracking OCR extracted text:\n{ocr_text}")
+        return extract_tracking_number(ocr_text, carrier)
+    except Exception as e:
+        print(f"Error extracting tracking from image OCR: {e}")
+        return None
 
 
 def convert_google_drive_url(url: str) -> str:
@@ -381,27 +412,33 @@ def convert_label_to_jpg(
     Returns:
         Tuple of (jpg_bytes, tracking_number, carrier_type)
     """
+    # Convert PDF to image
+    image = pdf_to_image(pdf_bytes)
+
     # Extract text for tracking detection
     full_text = extract_text_from_pdf(pdf_bytes)
-    
+
     # Debug: Print extracted text
     print(f"Extracted text from PDF:\n{full_text[:1000]}...")
-    
+
     # Detect carrier and extract tracking
     carrier = detect_carrier(full_text)
     tracking_id = extract_tracking_number(full_text, carrier)
-    
+
+    # USPS labels often have incomplete PDF text layers, so OCR the barcode block when needed.
+    if carrier == 0 and (not tracking_id or len(tracking_id) < 24):
+        ocr_tracking_id = extract_tracking_number_from_image(image, carrier)
+        if ocr_tracking_id and len(ocr_tracking_id) > len(tracking_id or ""):
+            tracking_id = ocr_tracking_id
+
     # Debug: Print detection results
     print(f"Detected carrier: {carrier}, tracking_id: {tracking_id}")
-    
+
     if not tracking_id:
         print("WARNING: Tracking ID not found! Dumping full text for debug:")
         print("-" * 50)
         print(full_text)
         print("-" * 50)
-    
-    # Convert PDF to image
-    image = pdf_to_image(pdf_bytes)
     
     # Add text overlay
     image_with_overlay = add_text_overlay_to_image(image, order_id, order_stt, items)
