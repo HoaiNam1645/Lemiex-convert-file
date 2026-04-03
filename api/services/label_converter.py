@@ -503,10 +503,15 @@ def convert_label_to_jpg(
     carrier = detect_carrier(full_text)
     tracking_id = extract_tracking_number(full_text, carrier)
 
-    # USPS labels often have incomplete PDF text layers, so OCR the barcode block when needed.
-    if carrier == 0 and (not tracking_id or len(tracking_id) < 24):
+    # USPS labels often have incomplete PDF text layers, so OCR the barcode block only
+    # when the current candidate is missing or weak. A valid 22-digit USPS number is
+    # common and should not be replaced just because OCR returned a longer string.
+    if carrier == 0 and not _is_confident_usps_tracking(tracking_id):
         ocr_tracking_id = extract_tracking_number_from_image(image, carrier)
-        if ocr_tracking_id and len(ocr_tracking_id) > len(tracking_id or ""):
+        if (
+            ocr_tracking_id
+            and _score_usps_candidate(ocr_tracking_id) > _score_usps_candidate(tracking_id or "")
+        ):
             tracking_id = ocr_tracking_id
 
     # Debug: Print detection results
