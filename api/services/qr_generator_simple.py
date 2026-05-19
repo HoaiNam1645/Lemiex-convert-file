@@ -17,6 +17,7 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     Generate a simple QR code image: Order ID (red, large) on top, QR below.
     """
     order_id = data.get('order_id', '')
+    order_item_id = data.get('order_item_id', '')
     pageqr = data.get('pageqr', '')
 
     # Generate QR code
@@ -65,7 +66,7 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     # Measure title text
     tmp_img = Image.new('RGB', (10, 10))
     tmp_draw = ImageDraw.Draw(tmp_img)
-    title_text = str(order_id)
+    title_text = f"{order_id} - {order_item_id}" if order_item_id != '' else str(order_id)
     bbox = tmp_draw.textbbox((0, 0), title_text, font=font_title)
     title_w = bbox[2] - bbox[0]
     title_h = bbox[3] - bbox[1]
