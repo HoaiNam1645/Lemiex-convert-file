@@ -13,9 +13,6 @@ from services.b2_storage import upload_qr_to_b2
 
 
 def generate_qr_image(data: Dict[str, Any]) -> bytes:
-    """
-    Generate a simple QR code image: Order ID (red, large) on top, QR below.
-    """
     order_id = data.get('order_id', '')
     order_item_id = data.get('order_item_id', '')
     pageqr = data.get('pageqr', '')

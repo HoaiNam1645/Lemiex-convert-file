@@ -72,10 +72,27 @@ def _collect_tracking_candidates(pdf_text: str) -> Tuple[list[str], list[str]]:
             ups_candidates.append(clean)
 
     numeric_candidates = []
-    for seq in re.findall(r'(?:\d[\s-]*){12,35}', pdf_text):
+    for seq in re.findall(r'(?:\d[\s-]*){12,40}', pdf_text):
         clean = re.sub(r'[\s-]+', '', seq)
         if len(clean) >= 12:
             numeric_candidates.append(clean)
+
+    # If a long numeric blob is actually two adjacent numbers stuck together
+    # (common when PDF text layout drops separators), expose plausible
+    # IMpb-length substrings as candidates too. This lets the scorer pick a
+    # standard 22-digit tracking embedded in noise like "...9511491150test".
+    expanded = []
+    for clean in numeric_candidates:
+        for start in range(len(clean)):
+            for sub_len in (22, 20, 30, 34):
+                end = start + sub_len
+                if end > len(clean):
+                    continue
+                sub = clean[start:end]
+                if sub.startswith(('92', '93', '94', '95', '420', '0', '4')):
+                    expanded.append(sub)
+
+    numeric_candidates.extend(expanded)
 
     # Keep deterministic order while deduplicating.
     ups_candidates = list(dict.fromkeys(ups_candidates))
@@ -84,30 +101,41 @@ def _collect_tracking_candidates(pdf_text: str) -> Tuple[list[str], list[str]]:
 
 
 def _score_usps_candidate(candidate: str) -> int:
+    """
+    Score USPS IMpb candidates. Standard formats:
+      - 22 digits: most common (Tracking, Ground Advantage, Priority Mail)
+      - 20 digits: Certified Mail
+      - 30 digits: 420 + ZIP5 + 22-digit IMpb
+      - 34 digits: 420 + ZIP9 + 22-digit IMpb
+    26 digits is not a standard USPS format and is usually a parsing
+    artifact (tracking concatenated with adjacent numeric noise).
+    """
     score = 0
     length = len(candidate)
 
-    if length in {20, 22, 26, 30, 34}:
-        score += 95
-    elif 22 <= length <= 26:
-        score += 80
+    if length == 22:
+        score += 100
+    elif length == 20:
+        score += 90
+    elif length in {30, 34}:
+        score += 85
+    elif length == 26:
+        # Non-standard length, likely a concatenation artifact.
+        score += 30
     elif 20 <= length <= 34:
-        score += 45
+        score += 40
     else:
         return -1
 
     if candidate.startswith(('92', '93', '94', '95')):
         score += 50
+    elif candidate.startswith('420'):
+        # IMpb with routing prefix; the embedded 22-digit tracking is preferred.
+        score += 20
     elif candidate.startswith(('9', '4', '0')):
         score += 15
     else:
         return -1
-
-    # Strong preference for common USPS ranges.
-    if 24 <= length <= 26:
-        score += 20
-    elif length == 22:
-        score += 15
 
     return score
 
@@ -115,7 +143,7 @@ def _score_usps_candidate(candidate: str) -> int:
 def _is_confident_usps_tracking(candidate: Optional[str]) -> bool:
     if not candidate:
         return False
-    return len(candidate) in {20, 22, 26, 30, 34} and _score_usps_candidate(candidate) >= 130
+    return len(candidate) in {20, 22, 30, 34} and _score_usps_candidate(candidate) >= 140
 
 
 def _score_fedex_candidate(candidate: str) -> int:
@@ -147,9 +175,15 @@ def _pick_best_candidate(candidates: list[str], scorer) -> Optional[str]:
 
     for candidate in candidates:
         score = scorer(candidate)
-        if score > best_score or (score == best_score and best_candidate and len(candidate) > len(best_candidate)):
+        if score > best_score:
             best_candidate = candidate
             best_score = score
+        elif score == best_score and best_candidate:
+            # On tie, prefer the shorter candidate — standard tracking lengths
+            # are short (22 digits for USPS), and longer ties are usually
+            # parsing noise that swallowed adjacent digits.
+            if len(candidate) < len(best_candidate):
+                best_candidate = candidate
 
     return best_candidate if best_score >= 0 else None
 
