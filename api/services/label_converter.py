@@ -418,7 +418,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     return full_text
 
 
-def pdf_to_image(pdf_bytes: bytes, dpi: int = 150) -> Image.Image:
+def pdf_to_image(pdf_bytes: bytes, dpi: int = 300) -> Image.Image:
     """
     Convert first page of PDF to PIL Image using pypdfium2
     """
@@ -475,11 +475,14 @@ def add_text_overlay_to_image(
     for style, qty in style_quantities.items():
         lines.append(f"{style} x {qty}")
     
-    # Font settings
-    font_size = 14
-    line_height = 18
-    margin_left = 15
-    margin_bottom = 25
+    # Font settings — scaled to image size so text stays proportional at any DPI.
+    # Baseline values were tuned for a ~900px-tall label (4x6" @ 150 DPI).
+    img_width, img_height = img.size
+    scale = max(1.0, img_height / 900)
+    font_size = int(14 * scale)
+    line_height = int(18 * scale)
+    margin_left = int(15 * scale)
+    margin_bottom = int(25 * scale)
     
     # Try to use a TrueType font, fallback to default
     try:
@@ -501,7 +504,6 @@ def add_text_overlay_to_image(
         font = ImageFont.load_default()
     
     # Calculate position (bottom-left)
-    img_width, img_height = img.size
     y_position = img_height - margin_bottom - (len(lines) * line_height)
     
     # Draw text with black color
@@ -561,8 +563,16 @@ def convert_label_to_jpg(
     image_with_overlay = add_text_overlay_to_image(image, order_id, order_stt, items)
     
     # Save to bytes as JPEG
+    # subsampling=0 keeps full color resolution (sharper text/barcodes),
+    # optimize reduces file size without quality loss.
     output_buffer = BytesIO()
-    image_with_overlay.save(output_buffer, format='JPEG', quality=95)
+    image_with_overlay.save(
+        output_buffer,
+        format='JPEG',
+        quality=95,
+        subsampling=0,
+        optimize=True,
+    )
     output_buffer.seek(0)
     
     return output_buffer.getvalue(), tracking_id, carrier
