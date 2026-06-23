@@ -44,7 +44,7 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
     bottom_padding = 30
     title_font_size = 80
 
-    # Load BOLD font
+    # Resolve a bold font file once.
     font_paths = [
         "/System/Library/Fonts/Helvetica.ttc",
         "/System/Library/Fonts/SFNSText-Bold.otf",
@@ -53,30 +53,37 @@ def generate_qr_image(data: Dict[str, Any]) -> bytes:
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
         "/usr/share/fonts/truetype/ubuntu/Ubuntu-Bold.ttf",
     ]
-
-    font_title = None
+    chosen_font_path = None
     for font_path in font_paths:
         if os.path.exists(font_path):
-            try:
-                font_title = ImageFont.truetype(font_path, title_font_size)
-                break
-            except:
-                continue
-
-    if font_title is None:
-        font_title = ImageFont.load_default()
+            chosen_font_path = font_path
+            break
 
     # Build title: "{order_id} - {order_item_id}" + " - {size}" when size is present.
-    tmp_img = Image.new('RGB', (10, 10))
-    tmp_draw = ImageDraw.Draw(tmp_img)
     if order_item_id != '':
         title_text = f"{order_id} - {order_item_id}"
     else:
         title_text = str(order_id)
     if size:
         title_text = f"{title_text} - {size}"
-    bbox = tmp_draw.textbbox((0, 0), title_text, font=font_title)
-    title_w = bbox[2] - bbox[0]
+
+    # Auto-shrink the title so it never grows wider than the QR. Adding the size
+    # makes the title longer, so a fixed 80px font would spill past the QR edges;
+    # shrinking keeps it tight and centred (like the no-size layout).
+    tmp_img = Image.new('RGB', (10, 10))
+    tmp_draw = ImageDraw.Draw(tmp_img)
+    max_title_width = qr_width
+    while True:
+        font_title = (
+            ImageFont.truetype(chosen_font_path, title_font_size)
+            if chosen_font_path
+            else ImageFont.load_default()
+        )
+        bbox = tmp_draw.textbbox((0, 0), title_text, font=font_title)
+        title_w = bbox[2] - bbox[0]
+        if title_w <= max_title_width or title_font_size <= 28 or not chosen_font_path:
+            break
+        title_font_size -= 4
     title_h = bbox[3] - bbox[1]
 
     # Canvas dimensions: width = max(title, qr) + padding; height = top + title + gap + qr + bottom
