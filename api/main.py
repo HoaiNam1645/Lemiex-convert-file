@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS, CORS_CREDENTIALS, CORS_METHODS, CORS_HEADERS, HOST, PORT
-from routes import convert, preview, format, convert_b2, batch_convert, label_convert, qr_generate, qr_generate_simple, qr_generate_simple_size, merge_image, progress
+from routes import convert, preview, format, convert_b2, batch_convert, label_convert, qr_generate, qr_generate_simple, qr_generate_simple_size, qr_generate_simple_size_theuniv, merge_image, progress
 
 app = FastAPI(
     title="PES Embroidery API",
@@ -71,6 +71,7 @@ app.include_router(label_convert.router, prefix="/pes-api", tags=["Label Convert
 app.include_router(qr_generate.router, prefix="/pes-api", tags=["QR Generate"])
 app.include_router(qr_generate_simple.router, prefix="/pes-api", tags=["QR Generate Simple"])
 app.include_router(qr_generate_simple_size.router, prefix="/pes-api", tags=["QR Generate Simple Size"])
+app.include_router(qr_generate_simple_size_theuniv.router, prefix="/pes-api", tags=["QR Generate Simple Size THEUNIV"])
 app.include_router(merge_image.router, prefix="/pes-api", tags=["Merge Image"])
 app.include_router(progress.router, prefix="/pes-api", tags=["Progress"])
 
