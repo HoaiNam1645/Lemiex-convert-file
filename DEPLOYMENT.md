@@ -71,8 +71,8 @@ pip install -r api/requirements.txt
 ```bash
 # Tạo file .env
 cat > /opt/pes-api/.env << EOF
-B2_ACCESS_KEY_ID=005fa7d122849800000000002
-B2_SECRET_ACCESS_KEY=K005UPfqNMWJYIoe1dvHEi9h0ISs4mQ
+B2_ACCESS_KEY_ID=your_b2_access_key_id
+B2_SECRET_ACCESS_KEY=your_b2_secret_access_key
 B2_DEFAULT_REGION=us-east-005
 B2_BUCKET=Lemiex-Fulfillment
 B2_ENDPOINT=https://s3.us-east-005.backblazeb2.com

@@ -12,11 +12,14 @@ from typing import Dict, Iterable, List, Optional, Protocol, Sequence
 
 import requests
 
+from config import (
+    LEMIEX_API_ENDPOINT as API_ENDPOINT,
+    DROPBOX_API_BASE,
+    DROPBOX_TOKEN_BASE,
+)
+
 # Constants
-API_ENDPOINT = "https://manage.lemiex.us/api/orders/process-order"
 MAX_QUERY_LENGTH = 4000
-DROPBOX_API_BASE = "https://api.dropboxapi.com/2"
-DROPBOX_TOKEN_BASE = "https://manage.lemiex.us/api/telegram"
 DROPBOX_TOKEN_TIMEOUT = 25
 
 LOGGER = logging.getLogger("progress_scanner")

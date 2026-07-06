@@ -57,3 +57,12 @@ DROPBOX_PATH = os.getenv("DROPBOX_PATH", "/.Embroidery_Lemiex")
 EMBROIDERY_ROOT = os.getenv("EMBROIDERY_ROOT")
 EMBROIDERY_REFRESH = int(os.getenv("EMBROIDERY_REFRESH", 180))
 EMBROIDERY_LOG_LEVEL = os.getenv("EMBROIDERY_LOG_LEVEL", "INFO")
+
+# Lemiex / Dropbox API endpoints
+LEMIEX_API_ENDPOINT = os.getenv(
+    "LEMIEX_API_ENDPOINT", "https://manage.lemiex.us/api/orders/process-order"
+)
+DROPBOX_API_BASE = os.getenv("DROPBOX_API_BASE", "https://api.dropboxapi.com/2")
+DROPBOX_TOKEN_BASE = os.getenv(
+    "DROPBOX_TOKEN_BASE", "https://manage.lemiex.us/api/telegram"
+)

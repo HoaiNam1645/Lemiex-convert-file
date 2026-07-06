@@ -1,12 +1,16 @@
 
+import os
 import requests
 import json
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Copy y hệt logic từ progress_scanner.py
 class LemiexClient:
     def __init__(self):
-        self.base_url = "https://manage.lemiex.us/api/orders/process-order"
+        self.base_url = os.getenv("LEMIEX_API_ENDPOINT", "https://manage.lemiex.us/api/orders/process-order")
         self.session = requests.Session()
         # Header y hệt server đang chạy
         self.session.headers.update({

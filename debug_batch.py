@@ -1,9 +1,13 @@
 
+import os
 import requests
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def test_batch():
-    url = "https://manage.lemiex.us/api/orders/process-order"
+    url = os.getenv("LEMIEX_API_ENDPOINT", "https://manage.lemiex.us/api/orders/process-order")
     # Danh sách ID lấy từ log của bạn
     ids_list = ["100", "112", "113", "114", "117", "118", "214"]
     ids_str = ",".join(ids_list)
